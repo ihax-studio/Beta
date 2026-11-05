@@ -21,7 +21,7 @@ function buzz(kind) {
 // 実タップで確実に1発（iOS 26.5+ 対策）。onTap はスイッチ経由で呼ばれる
 function tap(el, fn, burst) {
   if (!el) return el;
-  if (H && S.hap) H.bind(el, { onTap: ev => fn(ev), burst });
+  if (H && S.hap) H.bind(el, { onTap: ev => { fn(ev); try { ev.target.blur(); } catch {} }, burst });
   else el.addEventListener('click', fn);
   return el;
 }
@@ -73,6 +73,7 @@ S = { start: jst(), on: { math: 1, chem: 1, kte: 1, eiken: 1, ielts: 1, essay: 1
 try { const o = JSON.parse(localStorage.getItem(KEY) || 'null'); if (o) { Object.assign(S, o); S.on = { ...{ math: 1, chem: 1, kte: 1, eiken: 1, ielts: 1, essay: 1 }, ...o.on }; } } catch {}
 let saveT;
 const save = now => { clearTimeout(saveT); const f = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch {} }; now ? f() : (saveT = setTimeout(f, 250)); };
+S.on = { math: 1, chem: 1, kte: 1, eiken: 1, ielts: 1, essay: 1 }; S.hap = 1; S.snd = 0;
 save();
 const dayNow = () => Math.max(1, Math.min(DAYS, jst() - S.start + 1));
 let VD = dayNow();
@@ -176,9 +177,14 @@ function renderToday() {
     }
     if (g.tasks.length) host.append(sec);
   }
-  if (!P.length) host.innerHTML = '<div class="empty">設定で科目をオンに</div>';
   $('#dBar').style.width = (all ? dn / all * 100 : 0) + '%';
+  NEXT = null;
+  for (const g of P) { for (const t of g.tasks) if (!isDone(d, g.id + '-' + t.k)) { NEXT = { d, key: g.id + '-' + t.k, t, g }; break; } if (NEXT) break; }
+  $('#nextIn').innerHTML = NEXT ? `<span class="pl">▶</span><span class="tx"><small>次 · ${esc(NEXT.g.name)}</small><b>${esc(NEXT.t.t)}</b><small>${esc(NEXT.t.s)}</small></span>` : `<span class="tx"><b>${d === dayNow() ? '今日' : 'Day ' + d}の分は完了</b><small>${dn}/${all}</small></span>`;
+  $('#next').classList.toggle('fin', !NEXT);
 }
+let NEXT = null;
+tap($('#next'), () => { if (NEXT) runTask(NEXT.d, NEXT.key, NEXT.t); });
 function runTask(d, key, t) {
   const a = t.act, meta = { day: d, key, title: t.t + (t.s ? ' · ' + t.s : '') };
   if (a.in) openInput(a.in, meta);
@@ -198,7 +204,7 @@ function startCards(ids, meta) {
   SES = { q: shuffle([...ids]), i: 0, ok: 0, bad: [], meta, shown: false };
   $('#sTitle').textContent = meta.title || '';
   $('#ses').classList.remove('end');
-  open('#ses'); drawCard();
+  openOv('#ses'); drawCard();
 }
 function hl(text, words) {
   let s = esc(text);
@@ -265,26 +271,26 @@ function openInput(unitIds, meta) {
   const L = $('#iList'); L.className = 'ilist'; $('#iHide').classList.remove('on');
   L.innerHTML = unitIds.flatMap(u => UNIT[u].cards).map(c =>
     `<li><div class="iq">${esc(c.q)}</div><div class="ia">${esc(c.a)}</div>${c.x ? `<div class="ix">${hl(c.x, c.h)}${c.y ? '<br>' + esc(c.y) : ''}</div>` : ''}</li>`).join('');
-  L.scrollTop = 0; open('#inp');
+  L.scrollTop = 0; openOv('#inp');
 }
 $('#iList').addEventListener('click', e => { const li = e.target.closest('li'); if (li && $('#iList').classList.contains('hide')) { li.classList.toggle('open'); buzz(); } });
 tap($('#iHide'), () => { const on = $('#iList').classList.toggle('hide'); $('#iHide').classList.toggle('on', on); });
-tap($('#iDone'), () => { if (INP?.key) setDone(INP.day, INP.key); close('#inp'); buzz('ok'); });
+tap($('#iDone'), () => { if (INP?.key) setDone(INP.day, INP.key); closeOv('#inp'); buzz('ok'); });
 
 /* ───── タイマー ───── */
 const T = { total: 0, left: 0, end: 0, run: false, meta: null, label: '' };
 let tInt;
 function openTimer(min, label, meta) {
   if (!T.run || T.label !== label) { T.total = T.left = min * 60; T.run = false; T.label = label; T.meta = meta; }
-  drawTimer(); open('#tmr');
+  drawTimer(); openOv('#tmr');
 }
 const fmt = s => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 function drawTimer() {
   const left = T.run ? Math.max(0, (T.end - Date.now()) / 1000) : T.left;
   $('#tTitle').textContent = T.label; $('#tNum').textContent = fmt(Math.ceil(left));
   $('#tRing').style.strokeDashoffset = 339.3 * (1 - left / (T.total || 1));
-  $('#tGo').textContent = T.run ? '一時停止' : (T.left < T.total ? '再開' : '開始');
-  const pill = $('#pill'); pill.textContent = T.label + '  ' + fmt(Math.ceil(left));
+  $('#tGoTx').textContent = T.run ? '一時停止' : (T.left < T.total ? '再開' : '開始');
+  const pill = $('#pill'); $('#pillTx').textContent = T.label + '  ' + fmt(Math.ceil(left));
   pill.classList.toggle('on', T.run && !$('#tmr').classList.contains('on'));
   $('#wTime').textContent = T.run ? fmt(Math.ceil(left)) : '';
   if (T.run && left <= 0) { T.run = false; T.left = 0; clearInterval(tInt); buzz('end'); tone(880, .4, .08); if (T.meta?.key) setDone(T.meta.day, T.meta.key); renderToday(); drawTimer(); toast('時間です'); }
@@ -296,8 +302,8 @@ function timerGo() {
 }
 tap($('#tGo'), timerGo);
 tap($('#tReset'), () => { T.run = false; clearInterval(tInt); T.left = T.total; drawTimer(); });
-tap($('#tDone'), () => { if (T.meta?.key) setDone(T.meta.day, T.meta.key); T.run = false; clearInterval(tInt); T.left = T.total; drawTimer(); close('#tmr'); renderToday(); });
-tap($('#pill'), () => open('#tmr'));
+tap($('#tDone'), () => { if (T.meta?.key) setDone(T.meta.day, T.meta.key); T.run = false; clearInterval(tInt); T.left = T.total; drawTimer(); closeOv('#tmr'); renderToday(); });
+tap($('#pill'), () => openOv('#tmr'));
 
 /* ───── 書く（小論文・英作文） ───── */
 let WP = WRITE[1], WD = null, WM = null;
@@ -379,7 +385,7 @@ function openMark(id) {
   }
   $('#mList').innerHTML = html; $('#mList').classList.remove('graded'); $('#mScore').textContent = '';
   $('#mList').dataset.max = nums.length;
-  open('#mark');
+  openOv('#mark');
 }
 $('#mList').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return;
@@ -448,36 +454,84 @@ $('#files').addEventListener('click', async e => {
   });
 });
 
-/* ───── 学習 ───── */
+/* ───── 教材 ───── */
+const CHEM_TEXT = {
+  c1: [['理論', 1, '物質の成り立ちと構成', 1], ['理論', 2, '原子の構成とイオン化', 16], ['理論', 3, '化学結合', 27], ['無機', 1, '周期表', 1]],
+  c2: [['理論', 10, '結晶格子', 121]], c3: [['理論', 4, '原子量と分子量・式量', 43]], c4: [['理論', 11, '気体', 134]],
+  c5: [['理論', 12, '溶解度', 152]], c6: [['理論', 9, '化学反応と熱', 110]], c7: [['理論', 7, '電池', 93], ['理論', 8, '電気分解', 100]],
+  c8: [['理論', 13, '反応速度', 168], ['理論', 14, '化学平衡', 173]], c9: [['理論', 5, '酸と塩基', 62]], c10: [['理論', 6, '酸化と還元', 80]],
+  c11: [['無機', 2, '水素と貴ガス', 25], ['無機', 3, 'ハロゲン', 30], ['無機', 4, '16族', 43], ['無機', 5, '15族', 56], ['無機', 6, '14族', 68], ['無機', 7, '気体の性質', 81]],
+  c12: [['無機', 8, 'アルカリ金属', 90], ['無機', 9, 'アルカリ土類金属', 100], ['無機', 10, '両性元素', 109], ['無機', 11, '遷移元素', 122], ['無機', 12, '金属イオンの分離', 141]],
+};
+const ICON = { math: '∑', chem: '⚗', kte: 'A', eiken: 'E', ielts: 'I', essay: '✎' };
+let LD = null;
+const mastered = cs => cs.filter(c => (S.lv[c.id] || 0) >= 2).length;
 function renderLearn() {
-  $('#seg').innerHTML = DECKS.map(d => `<button data-d="${d.id}" class="${d.id === S.deck ? 'on' : ''}">${esc(d.name)}</button>`).join('');
-  const D = DECK[S.deck]; const cards = D.units.flatMap(u => u.cards);
-  const m = cards.filter(c => (S.lv[c.id] || 0) >= 2).length, ng = ngOf(S.deck).length;
-  $('#deckHead').innerHTML = `<div class="dh"><button data-a="ng"><b>${ng}</b><small>✕ 復習</small></button><button data-a="rnd"><b>30</b><small>ランダム</small></button><button data-a="all" disabled><b>${Math.round(m / (cards.length || 1) * 100)}%</b><small>${m}/${cards.length}</small></button></div>`;
+  const q = $('#q').value.trim();
+  $('#hits').style.display = q ? '' : 'none';
+  $('#lib').style.display = !q && !LD ? '' : 'none';
+  $('#deckView').style.display = !q && LD ? '' : 'none';
+  if (q) return renderHits(q);
+  if (!LD) {
+    const allNg = Object.keys(S.ng).filter(id => CARD[id]).length;
+    $('#lib').innerHTML = DECKS.map(d => {
+      const cs = d.units.flatMap(u => u.cards), m = mastered(cs);
+      return `<button class="tile" data-d="${d.id}"><i>${ICON[d.id]}</i><b>${esc(d.name)}</b><small>${cs.length}枚 · ${Math.round(m / (cs.length || 1) * 100)}%</small><span class="bar"><em style="width:${m / (cs.length || 1) * 100}%"></em></span></button>`;
+    }).join('') +
+      `<button class="tile ext" data-x="book"><i>📕</i><b>化学問題集</b><small>理論・無機 / 教科書</small></button>` +
+      `<button class="tile ext" data-x="ng"><i>✕</i><b>✕ まとめて復習</b><small>${allNg}枚</small></button>`;
+    return;
+  }
+  const D = DECK[LD], cards = D.units.flatMap(u => u.cards), m = mastered(cards), ng = ngOf(LD).length;
+  $('#deckName').textContent = D.name;
+  $('#deckHead').innerHTML = `<div class="dh"><button data-a="ng"><b>${ng}</b><small>✕ 復習</small></button><button data-a="rnd"><b>30</b><small>ランダム</small></button>${LD === 'chem' ? '<button data-a="book"><b>📕</b><small>問題集</small></button>' : `<button data-a="all" disabled><b>${Math.round(m / (cards.length || 1) * 100)}%</b><small>${m}/${cards.length}</small></button>`}</div>`;
   let g0 = null, html = '';
   for (const u of D.units) {
     if (u.g && u.g !== g0) { g0 = u.g; html += `<li class="gh">${esc(g0)}</li>`; }
-    const n = u.cards.length, k = u.cards.filter(c => (S.lv[c.id] || 0) >= 2).length, x = u.cards.filter(c => S.ng[c.id]).length, lap = S.laps[u.id] || 0;
+    const n = u.cards.length, k = mastered(u.cards), x = u.cards.filter(c => S.ng[c.id]).length, lap = S.laps[u.id] || 0;
     html += `<li data-u="${u.id}"><div class="row"><span class="nm">${esc(u.g ? u.name.replace(u.g + ' ', '') : u.name)}</span><span class="mt">${lap ? lap + '周 · ' : ''}${x ? `<span class="n">✕${x}</span> · ` : ''}${k}/${n}</span></div><div class="bar"><i style="width:${k / n * 100}%"></i></div></li>`;
   }
   $('#units').innerHTML = html;
 }
-$('#seg').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; S.deck = b.dataset.d; save(); renderLearn(); buzz(); b.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' }); });
+const openBook = () => window.open(CHEM_SITE, '_blank');
+$('#lib').addEventListener('click', e => {
+  const b = e.target.closest('.tile'); if (!b) return; buzz();
+  if (b.dataset.d) { LD = b.dataset.d; renderLearn(); window.scrollTo(0, 0); }
+  else if (b.dataset.x === 'book') openBook();
+  else if (b.dataset.x === 'ng') { const ids = Object.keys(S.ng).filter(id => CARD[id]); ids.length ? startCards(ids, { title: '✕ まとめて復習' }) : toast('✕ はありません'); }
+});
+tap($('#back'), () => { LD = null; renderLearn(); window.scrollTo(0, 0); });
 $('#deckHead').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return;
-  if (b.dataset.a === 'ng') { const ids = ngOf(S.deck); if (ids.length) startCards(ids, { title: DECK[S.deck].name + ' ✕ 復習' }); else toast('✕ はありません'); }
-  if (b.dataset.a === 'rnd') startCards(shuffle(DECK[S.deck].units.flatMap(u => u.cards.map(c => c.id))).slice(0, 30), { title: DECK[S.deck].name + ' ランダム' });
+  if (b.dataset.a === 'ng') { const ids = ngOf(LD); if (ids.length) startCards(ids, { title: DECK[LD].name + ' ✕ 復習' }); else toast('✕ はありません'); }
+  if (b.dataset.a === 'rnd') startCards(shuffle(DECK[LD].units.flatMap(u => u.cards.map(c => c.id))).slice(0, 30), { title: DECK[LD].name + ' ランダム' });
+  if (b.dataset.a === 'book') openBook();
 });
-$('#units').addEventListener('click', e => {
-  const li = e.target.closest('li[data-u]'); if (!li) return;
-  const u = UNIT[li.dataset.u], x = u.cards.filter(c => S.ng[c.id]).map(c => c.id);
+function unitSheet(u) {
+  const x = u.cards.filter(c => S.ng[c.id]).map(c => c.id);
+  const pages = (CHEM_PAGES[u.id] || []).map(([b, r]) => `問題集 ${b} p.${r}`);
+  const text = (CHEM_TEXT[u.id] || []).map(([b, ch, t, p]) => `教科書 ${b} 第${ch}章 ${t} p.${p}`);
+  const ref = [...pages, ...text];
   buzz();
-  sheet(`<h5>${esc(u.name)}</h5><div class="sm">${u.cards.length}枚${S.laps[u.id] ? ' · ' + S.laps[u.id] + '周' : ''}</div><button class="btn" data-a="in">インプット</button><button class="btn pri" data-a="out">アウトプット</button>${x.length ? `<button class="btn" data-a="ng">✕ だけ（${x.length}）</button>` : ''}`, a => {
+  sheet(`<h5>${esc(u.name)}</h5><div class="sm">${u.cards.length}枚${S.laps[u.id] ? ' · ' + S.laps[u.id] + '周' : ''}</div>${ref.length ? `<div class="refs">${ref.map(r => `<div>${esc(r)}</div>`).join('')}</div>` : ''}<button class="btn" data-a="in">インプット</button><button class="btn pri" data-a="out">アウトプット</button>${x.length ? `<button class="btn" data-a="ng">✕ だけ（${x.length}）</button>` : ''}${ref.length ? '<button class="btn" data-a="book">📕 問題集・教科書を開く</button>' : ''}`, a => {
     if (a === 'in') openInput([u.id], { title: u.name });
     if (a === 'out') startCards(u.cards.map(c => c.id), { title: u.name, units: [u.id] });
     if (a === 'ng') startCards(x, { title: u.name + ' ✕' });
+    if (a === 'book') openBook();
   });
-});
+}
+$('#units').addEventListener('click', e => { const li = e.target.closest('li[data-u]'); if (li) unitSheet(UNIT[li.dataset.u]); });
+/* さがす：全教材のカードから */
+const ALL = Object.values(CARD);
+const norm = t => String(t || '').toLowerCase().normalize('NFKC');
+let hitT;
+function renderHits(q) {
+  const k = norm(q), out = [];
+  for (const c of ALL) { if (norm(c.q).includes(k) || norm(c.a).includes(k)) { out.push(c); if (out.length >= 80) break; } }
+  $('#hits').innerHTML = out.length ? out.map(c => { const u = UNIT[c.u]; return `<li data-u="${u.id}"><div class="hq">${esc(c.q)}</div><div class="ha">${esc(c.a)}</div><div class="hm">${esc(DECK[u.deck].name)} · ${esc(u.name)}</div></li>`; }).join('') : '<li class="nil"><span class="mt">見つかりません</span></li>';
+}
+$('#q').addEventListener('input', () => { clearTimeout(hitT); hitT = setTimeout(renderLearn, 120); });
+$('#hits').addEventListener('click', e => { const li = e.target.closest('li[data-u]'); if (li) unitSheet(UNIT[li.dataset.u]); });
 
 /* ───── 傾向 ───── */
 const TCAT = (() => {
@@ -502,15 +556,15 @@ function show(v) {
   window.scrollTo(0, 0);
 }
 $$('#tabs button').forEach(b => tap(b, () => show(b.dataset.v)));
-function open(sel) { $(sel).classList.add('on'); document.body.style.overflow = 'hidden'; }
-function close(sel) {
+function openOv(sel) { $(sel).classList.add('on'); document.body.style.overflow = 'hidden'; }
+function closeOv(sel) {
   $(sel).classList.remove('on');
   if (!$$('.ov.on').length) document.body.style.overflow = '';
   if (sel === '#ses') SES = null;
   if (sel === '#tmr') drawTimer();
   const v = $('.view.on')?.id; if (v === 'v-today') renderToday(); if (v === 'v-learn') renderLearn();
 }
-$$('[data-close]').forEach(b => tap(b, () => close('#' + b.closest('.ov').id)));
+$$('[data-close]').forEach(b => tap(b, () => closeOv('#' + b.closest('.ov').id)));
 let SH = null;
 function sheet(html, cb) {
   const s = $('#sheet'); s.innerHTML = html; SH = cb;
@@ -525,35 +579,15 @@ function toast(m) { const t = $('#toast'); t.textContent = m; t.classList.add('o
 tap($('#dPrev'), () => { if (VD > 1) { VD--; renderToday(); } });
 tap($('#dNext'), () => { if (VD < DAYS) { VD++; renderToday(); } });
 
-/* 設定 */
-function openSettings() {
-  const tg = (k, on, label) => `<label class="opt"><span>${label}</span><input type="checkbox" switch data-k="${k}" ${on ? 'checked' : ''}></label>`;
-  const s = $('#sheet');
-  s.innerHTML = `<h5>設定</h5>
-    <label class="opt"><span>Day 1</span><input type="date" id="stDate" value="${isoOf(S.start)}"></label>
-    ${DECKS.map(d => tg('on.' + d.id, S.on[d.id], d.name)).join('')}
-    ${tg('hap', S.hap, '触覚')}${tg('snd', S.snd, '音')}
-    <button class="btn danger" id="stReset">記録をリセット</button>`;
-  $('#stDate', s).addEventListener('change', e => { if (e.target.value) { S.start = dayOf(e.target.value); VD = dayNow(); save(); renderToday(); } });
-  $$('input[switch]', s).forEach(i => i.addEventListener('change', () => {
-    const k = i.dataset.k; if (k.startsWith('on.')) S.on[k.slice(3)] = i.checked ? 1 : 0; else S[k] = i.checked ? 1 : 0;
-    try { if (i.checked) navigator.vibrate?.(8); } catch {}
-    save(); renderToday();
-  }));
-  $('#stReset', s).addEventListener('click', () => { if (confirm('記録をすべて消しますか？')) { S.lv = {}; S.ng = {}; S.laps = {}; S.done = {}; S.ms = {}; save(true); closeSheet(); renderToday(); } });
-  $('#sheetBg').classList.add('on'); s.classList.add('on');
-}
-tap($('#openSet'), openSettings);
-
 /* キーボード */
 document.addEventListener('keydown', e => {
-  if (e.target.matches('textarea,input')) return;
+  if (e.target.matches('textarea,input:not(.hu-overlay)')) return;
   if ($('#ses').classList.contains('on') && !$('#ses').classList.contains('end')) {
     if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); SES?.shown ? judge(true) : reveal(); }
     if (e.key === 'ArrowRight') judge(true);
     if (e.key === 'ArrowLeft') judge(false);
   }
-  if (e.key === 'Escape') { const o = $$('.ov.on').pop(); if (o) close('#' + o.id); closeSheet(); }
+  if (e.key === 'Escape') { const o = $$('.ov.on').pop(); if (o) closeOv('#' + o.id); closeSheet(); }
 });
 
 renderTrends();
