@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#000000">
+<title>レース</title>
+<link rel="icon" href="../icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="../icon.svg">
+<link rel="manifest" href="../manifest.webmanifest">
+<link rel="stylesheet" href="ui.css">
+</head>
+<body>
+<canvas id="cv"></canvas>
+
+<div class="hud" id="hud" hidden>
+  <div class="top">
+    <button class="ic glass" id="pause" aria-label="一時停止">Ⅱ</button>
+    <div class="stat glass place"><b id="pl">1</b><small>/ 4位</small></div>
+    <div class="stat glass"><b id="lap">1/3</b><small>周</small></div>
+    <div class="sp"></div>
+    <div class="stat glass"><b id="tm">0:00.00</b><small>タイム</small></div>
+    <canvas id="mm" class="glass" width="192" height="192"></canvas>
+  </div>
+  <div class="coins glass">● <span id="cn">0</span></div>
+  <div class="pad" id="pad"><div class="ring"><div class="lbl">ドラッグでハンドル</div><div class="knob" id="knob"></div></div></div>
+  <button class="drift" id="drift">ドリフト</button>
+</div>
+<div class="big" id="big"></div>
+<div class="msg" id="msg"></div>
+
+<a class="back" id="back" href="../3d.html">‹ 3D</a>
+
+<div class="menu" id="menuStart">
+  <h1>レース</h1>
+  <div class="sub">3周・ライバル3台。コインで最高速アップ、ドリフト長押し→離してダッシュ</div>
+  <div class="row" id="courses"></div>
+  <button class="go" id="startBtn">スタート</button>
+</div>
+
+<div class="menu" id="menuPause" hidden>
+  <h1>一時停止</h1>
+  <button class="go" id="resume">再開</button>
+  <button class="sec" id="retry">やり直す</button>
+  <button class="sec" id="toCourse">コースを選ぶ</button>
+</div>
+
+<div class="menu" id="menuEnd" hidden>
+  <div class="res"><div class="pl" id="rPl"></div><div class="tm" id="rTm"></div><div class="tm" id="rBest"></div></div>
+  <button class="go" id="again">もう一回</button>
+  <button class="sec" id="endCourse">コースを選ぶ</button>
+  <a class="sec" href="../3d.html" style="text-align:center;color:#fff;text-decoration:none">3D トップへ</a>
+</div>
+
+<script src="../haptic.js"></script>
+<script type="module">
+import { Race, COURSES, bindControls, hap, fmtTime } from './engine.js';
+const $ = s => document.querySelector(s);
+const SAVE = 'thirty.3d';
+let st = {}; try { st = JSON.parse(localStorage.getItem(SAVE) || '{}'); } catch {}
+const keep = () => { try { localStorage.setItem(SAVE, JSON.stringify(st)); } catch {} };
+let course = st.course && COURSES[st.course] ? st.course : 'park', race = null;
+
+function courseTiles() {
+  $('#courses').innerHTML = Object.entries(COURSES).map(([id, c]) => `<button class="opt ${id === course ? 'on' : ''}" data-c="${id}"><b>${c.name}</b><small>${c.sub}${st.best && st.best[id] ? ' · ベスト ' + fmtTime(st.best[id]) : ''}</small></button>`).join('');
+  document.querySelectorAll('#courses .opt').forEach(b => hap.bind(b, () => { course = b.dataset.c; st.course = course; keep(); courseTiles(); preview(); }));
+}
+function msg(t, cls = 'info') { const m = $('#msg'); m.textContent = t; m.className = 'msg on ' + cls; clearTimeout(msg.t); msg.t = setTimeout(() => m.className = 'msg', 1100); }
+function big(t) { const b = $('#big'); b.textContent = t; b.classList.remove('on'); void b.offsetWidth; b.classList.add('on'); clearTimeout(big.t); big.t = setTimeout(() => b.classList.remove('on'), t === 'GO!' ? 700 : 900); }
+
+function build() {
+  if (race) race.stop();
+  const cv = $('#cv'); const fresh = cv.cloneNode(); cv.replaceWith(fresh);
+  race = new Race(fresh, course, {
+    laps: 3, rivals: 3,
+    onCount: n => big(n ? String(n) : 'GO!'),
+    onLap: n => msg(n === 3 ? 'ファイナルラップ' : n + '周目'),
+    onBoost: lv => msg(lv === 2 ? 'スーパーダッシュ' : 'ダッシュ', 'ok'),
+    onTick: r => {
+      $('#pl').textContent = r.me.place; $('#lap').textContent = Math.min(r.laps, r.me.lap + 1) + '/' + r.laps;
+      $('#tm').textContent = fmtTime(r.t); $('#cn').textContent = r.me.coins;
+      if (!(r._mmT = (r._mmT || 0) + 1) || r._mmT % 3 === 0) r.minimap($('#mm'));
+    },
+    onFinish: me => setTimeout(() => finish(me), 900),
+  });
+  race.loop(); window.__race = race;
+  return race;
+}
+function preview() { build(); }
+function start() {
+  $('#menuStart').hidden = true; $('#menuEnd').hidden = true; $('#menuPause').hidden = true; $('#hud').hidden = false; $('#back').hidden = true;
+  build(); race.start();
+}
+function finish(me) {
+  $('#hud').hidden = true; $('#back').hidden = false;
+  st.best = st.best || {};
+  const nb = !st.best[course] || me.time < st.best[course];
+  if (nb) st.best[course] = me.time; keep();
+  $('#rPl').textContent = me.place + '位';
+  $('#rTm').textContent = fmtTime(me.time) + ' · コイン ' + me.coins;
+  $('#rBest').textContent = nb ? 'ベスト更新' : 'ベスト ' + fmtTime(st.best[course]);
+  $('#menuEnd').hidden = false;
+}
+hap.bind($('#startBtn'), start, 'confirm');
+hap.bind($('#again'), start, 'confirm');
+hap.bind($('#pause'), () => { if (!race) return; race.paused = true; $('#menuPause').hidden = false; });
+hap.bind($('#resume'), () => { race.paused = false; race._last = 0; $('#menuPause').hidden = true; });
+hap.bind($('#retry'), start);
+const toCourse = () => { $('#menuPause').hidden = true; $('#menuEnd').hidden = true; $('#hud').hidden = true; $('#back').hidden = false; $('#menuStart').hidden = false; courseTiles(); preview(); };
+hap.bind($('#toCourse'), toCourse); hap.bind($('#endCourse'), toCourse);
+document.addEventListener('visibilitychange', () => { if (document.hidden && race && race.state === 'run') { race.paused = true; $('#menuPause').hidden = false; } });
+addEventListener('keydown', e => { if ((e.code === 'Escape' || e.code === 'KeyP') && race && race.state === 'run') { race.paused = !race.paused; race._last = 0; $('#menuPause').hidden = !race.paused; } });
+bindControls(() => race, $('#pad'), $('#drift'), $('#knob'));
+courseTiles(); preview();
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('../sw.js').catch(() => {});
+</script>
+</body>
+</html>

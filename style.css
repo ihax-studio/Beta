@@ -298,3 +298,7 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
   .next{max-width:none}
 }
 .next .nx{display:flex;align-items:center;gap:14px;width:100%}
+.tile.d3{grid-column:1/-1;min-height:84px;flex-direction:row;align-items:center;gap:12px;background:linear-gradient(135deg,#ff6a3d,#5e5ce6);color:#fff}
+.tile.d3 i{margin:0;background:rgba(255,255,255,.22);color:#fff;box-shadow:none}
+.tile.d3 small{color:rgba(255,255,255,.85)}
+@media (min-width:720px){.tile.d3{grid-column:span 2}}

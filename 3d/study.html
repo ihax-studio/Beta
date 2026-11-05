@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#000000">
+<title>勉強レース</title>
+<link rel="icon" href="../icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="../icon.svg">
+<link rel="manifest" href="../manifest.webmanifest">
+<link rel="stylesheet" href="ui.css">
+</head>
+<body>
+<canvas id="cv"></canvas>
+
+<div class="hud" id="hud" hidden>
+  <div class="top">
+    <button class="ic glass" id="pause" aria-label="一時停止">Ⅱ</button>
+    <div class="stat glass place"><b id="pl">1</b><small>/ 4位</small></div>
+    <div class="stat glass"><b id="sc">0/0</b><small>正解</small></div>
+    <div class="sp"></div>
+    <div class="stat glass"><b id="lap">1/3</b><small>周</small></div>
+    <canvas id="mm" class="glass" width="192" height="192"></canvas>
+  </div>
+  <div class="q glass" id="q"><small id="qm"></small><span id="qt"></span></div>
+  <div class="ch" id="ch"><div class="c0" id="c0"></div><div class="c1" id="c1"></div><div class="c2" id="c2"></div></div>
+  <div class="pad" id="pad"><div class="ring"><div class="lbl">ドラッグで答えの車線へ</div><div class="knob" id="knob"></div></div></div>
+  <button class="drift" id="drift">ドリフト</button>
+</div>
+<div class="big" id="big"></div>
+<div class="msg" id="msg"></div>
+
+<a class="back" id="back" href="../3d.html">‹ 3D</a>
+
+<div class="menu" id="menuStart">
+  <h1>勉強レース</h1>
+  <div class="sub">問題が出たら、正しい答えの色の車線でゲートを通過。正解でダッシュ、まちがいは ✕ 復習に入る</div>
+  <div class="row" id="decks"></div>
+  <div class="row" id="courses"></div>
+  <button class="go" id="startBtn">スタート</button>
+</div>
+
+<div class="menu" id="menuPause" hidden>
+  <h1>一時停止</h1>
+  <button class="go" id="resume">再開</button>
+  <button class="sec" id="retry">やり直す</button>
+  <button class="sec" id="toMenu">科目を選ぶ</button>
+</div>
+
+<div class="menu" id="menuEnd" hidden>
+  <div class="res"><div class="pl" id="rSc"></div><div class="tm" id="rTm"></div></div>
+  <div class="miss" id="miss"></div>
+  <button class="go" id="retryNg">✕ だけもう一回</button>
+  <button class="sec" id="again">次の問題で走る</button>
+  <button class="sec" id="endMenu">科目を選ぶ</button>
+  <a class="sec" href="../index.html" style="text-align:center;color:#fff;text-decoration:none">教材アプリへ</a>
+</div>
+
+<script src="../haptic.js"></script>
+<script src="../data.js"></script>
+<script src="../en-data.js"></script>
+<script type="module">
+import { Race, COURSES, bindControls, hap, fmtTime } from './engine.js';
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.random() * (i + 1) | 0; [a[i], a[j]] = [a[j], a[i]]; } return a; };
+
+/* 教材アプリと同じカード ID（記録を共有） */
+const EN = window.EN || {};
+const enc = p => x => ({ id: p + x.i, q: x.w, a: x.j });
+const unitsOf = s => UNITS.filter(u => u.s === s).map(u => ({ name: u.name, cards: u.cards }));
+const DECKS = [
+  { id: 'math', name: '数学', units: unitsOf('数') },
+  { id: 'chem', name: '化学', units: unitsOf('化') },
+  { id: 'kte', name: '共テ英語', units: ['tango', 'to', 'ing', 'gohou', 'tagigo', 'bunpou', 'kyote', 'kobetsu'].map(k => ({ name: k, cards: (EN[k] || []).map(enc('k')) })) },
+  { id: 'eiken', name: '英検', units: ['hw', 'id', 'dv'].map(k => ({ name: k, cards: (EN[k] || []).map(enc('e')) })) },
+  { id: 'ielts', name: 'IELTS', units: unitsOf('I') },
+  { id: 'essay', name: '小論文', units: unitsOf('論') },
+];
+const KEY = 'thirty.v1';
+const loadS = () => { let o = {}; try { o = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch {} o.lv = o.lv || {}; o.ng = o.ng || {}; return o; };
+const saveS = o => { try { localStorage.setItem(KEY, JSON.stringify(o)); } catch {} };
+
+const SAVE = 'thirty.3d';
+let st = {}; try { st = JSON.parse(localStorage.getItem(SAVE) || '{}'); } catch {}
+const keep = () => { try { localStorage.setItem(SAVE, JSON.stringify(st)); } catch {} };
+let deck = st.deck && DECKS.some(d => d.id === st.deck) ? st.deck : 'math';
+let course = st.scourse && COURSES[st.scourse] ? st.scourse : 'park';
+const PER_LAP = 4, LAPS = 3, NQ = PER_LAP * LAPS;
+let race = null, Q = [], score = 0, missed = [], forced = null;
+
+function tiles() {
+  const S = loadS();
+  $('#decks').innerHTML = DECKS.map(d => { const ng = d.units.reduce((a, u) => a + u.cards.filter(c => S.ng[c.id]).length, 0); return `<button class="opt ${d.id === deck ? 'on' : ''}" data-d="${d.id}"><b>${d.name}</b><small>${d.units.reduce((a, u) => a + u.cards.length, 0)}枚${ng ? ' · ✕' + ng : ''}</small></button>`; }).join('');
+  $('#courses').innerHTML = Object.entries(COURSES).map(([id, c]) => `<button class="opt ${id === course ? 'on' : ''}" data-c="${id}"><b>${c.name}</b><small>${c.sub}</small></button>`).join('');
+  document.querySelectorAll('#decks .opt').forEach(b => hap.bind(b, () => { deck = b.dataset.d; st.deck = deck; keep(); tiles(); }));
+  document.querySelectorAll('#courses .opt').forEach(b => hap.bind(b, () => { course = b.dataset.c; st.scourse = course; keep(); tiles(); preview(); }));
+}
+
+/* 出題：✕ → まだ覚えていない → それ以外 の順。選択肢は同じ単元から */
+function makeQuestions() {
+  const S = loadS(), D = DECKS.find(d => d.id === deck);
+  const all = D.units.flatMap(u => u.cards.map(c => ({ c, u })));
+  let pick;
+  if (forced && forced.length) pick = shuffle(forced.map(id => all.find(x => x.c.id === id)).filter(Boolean)).slice(0, NQ);
+  else {
+    const ng = shuffle(all.filter(x => S.ng[x.c.id])), weak = shuffle(all.filter(x => !S.ng[x.c.id] && (S.lv[x.c.id] || 0) < 2)), rest = shuffle(all.filter(x => !S.ng[x.c.id] && (S.lv[x.c.id] || 0) >= 2));
+    pick = [...ng, ...weak, ...rest].slice(0, NQ);
+  }
+  while (pick.length < NQ && pick.length) pick.push(pick[pick.length % pick.length]);
+  return pick.map(({ c, u }) => {
+    const pool = (u.cards.length >= 6 ? u.cards : D.units.flatMap(x => x.cards)).filter(x => x.a && x.a !== c.a);
+    const wrong = [];
+    for (let k = 0; k < 40 && wrong.length < 2; k++) { const w = pool[Math.random() * pool.length | 0]; if (w && !wrong.includes(w.a)) wrong.push(w.a); }
+    while (wrong.length < 2) wrong.push('—');
+    const opts = shuffle([c.a, ...wrong]);
+    return { c, unit: u.name, opts, right: opts.indexOf(c.a), done: false };
+  });
+}
+
+const cut = t => t.length > 46 ? t.slice(0, 45) + '…' : t;
+function msg(t, cls = 'info', ms = 1100) { const m = $('#msg'); m.textContent = t; m.className = 'msg on ' + cls; clearTimeout(msg.t); msg.t = setTimeout(() => m.className = 'msg', ms); }
+function big(t) { const b = $('#big'); b.textContent = t; b.classList.remove('on'); void b.offsetWidth; b.classList.add('on'); clearTimeout(big.t); big.t = setTimeout(() => b.classList.remove('on'), 800); }
+let showing = -1;
+function ask(i) {
+  const q = Q[i]; if (!q) return; showing = i;
+  $('#qm').textContent = `${i + 1}/${Q.length} · ${DECKS.find(d => d.id === deck).name}`;
+  $('#qt').textContent = q.c.q;
+  q.opts.forEach((o, k) => { const el = $('#c' + k); el.textContent = cut(o); el.classList.remove('right'); });
+  $('#q').classList.add('on'); $('#ch').classList.add('on');
+}
+function judge(i, lane) {
+  const q = Q[i]; if (!q || q.done) return; q.done = true;
+  const S = loadS(), id = q.c.id;
+  if (lane === q.right) {
+    score++; S.lv[id] = Math.min(3, (S.lv[id] || 0) + 1); delete S.ng[id];
+    race.boost(1); hap.ok(); msg('○ 正解　ダッシュ', 'ok');
+  } else {
+    S.lv[id] = 0; S.ng[id] = 1; missed.push(q.c);
+    race.penalty(); hap.ng(); msg('✕ ' + cut(q.c.a), 'ng', 1900);
+    $('#c' + q.right).classList.add('right');
+  }
+  saveS(S);
+  $('#sc').textContent = score + '/' + Q.filter(x => x.done).length;
+  setTimeout(() => { if (showing === i) { $('#q').classList.remove('on'); $('#ch').classList.remove('on'); } }, lane === q.right ? 700 : 1600);
+}
+
+function build(withGates) {
+  if (race) race.stop();
+  const cv = $('#cv'); const fresh = cv.cloneNode(); cv.replaceWith(fresh);
+  race = new Race(fresh, course, {
+    laps: LAPS, rivals: 3, study: true,
+    onCount: n => big(n ? String(n) : 'GO!'),
+    onLap: n => msg(n === LAPS ? 'ファイナルラップ' : n + '周目'),
+    onBoost: lv => { if (lv === 2) msg('スーパーダッシュ', 'ok'); },
+    onGateNear: i => ask(i),
+    onGatePass: (i, lane) => judge(i, lane),
+    onTick: r => { $('#pl').textContent = r.me.place; $('#lap').textContent = Math.min(r.laps, r.me.lap + 1) + '/' + r.laps; if (((r._mmT = (r._mmT || 0) + 1) % 3) === 0) r.minimap($('#mm')); },
+    onFinish: me => setTimeout(() => finish(me), 900),
+  });
+  if (withGates) race.addGates(PER_LAP);
+  race.loop(); window.__race = race;
+}
+function preview() { build(false); }
+function start(ngOnly) {
+  forced = ngOnly ? missed.map(c => c.id) : null;
+  Q = makeQuestions(); score = 0; missed = []; showing = -1;
+  if (!Q.length) { msg('カードがありません', 'ng'); return; }
+  ['#menuStart', '#menuEnd', '#menuPause'].forEach(s => $(s).hidden = true); $('#hud').hidden = false; $('#back').hidden = true;
+  $('#sc').textContent = '0/0'; $('#q').classList.remove('on'); $('#ch').classList.remove('on');
+  build(true); race.start();
+}
+function finish(me) {
+  $('#hud').hidden = true; $('#back').hidden = false;
+  $('#rSc').textContent = `${score}/${Q.length}`;
+  $('#rTm').textContent = `${me.place}位 · ${fmtTime(me.time)}`;
+  $('#miss').innerHTML = missed.length ? missed.map(c => `<div><b>${esc(c.q)}</b><span>${esc(c.a)}</span></div>`).join('') : '<div style="text-align:center">全問正解</div>';
+  $('#retryNg').style.display = missed.length ? '' : 'none';
+  $('#menuEnd').hidden = false;
+}
+hap.bind($('#startBtn'), () => start(false), 'confirm');
+hap.bind($('#again'), () => start(false), 'confirm');
+hap.bind($('#retryNg'), () => start(true), 'confirm');
+hap.bind($('#pause'), () => { if (!race) return; race.paused = true; $('#menuPause').hidden = false; });
+hap.bind($('#resume'), () => { race.paused = false; race._last = 0; $('#menuPause').hidden = true; });
+hap.bind($('#retry'), () => start(false));
+const toMenu = () => { ['#menuPause', '#menuEnd'].forEach(s => $(s).hidden = true); $('#hud').hidden = true; $('#back').hidden = false; $('#menuStart').hidden = false; tiles(); preview(); };
+hap.bind($('#toMenu'), toMenu); hap.bind($('#endMenu'), toMenu);
+document.addEventListener('visibilitychange', () => { if (document.hidden && race && race.state === 'run') { race.paused = true; $('#menuPause').hidden = false; } });
+addEventListener('keydown', e => { if ((e.code === 'Escape' || e.code === 'KeyP') && race && race.state === 'run') { race.paused = !race.paused; race._last = 0; $('#menuPause').hidden = !race.paused; } });
+bindControls(() => race, $('#pad'), $('#drift'), $('#knob'));
+tiles(); preview();
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('../sw.js').catch(() => {});
+</script>
+</body>
+</html>

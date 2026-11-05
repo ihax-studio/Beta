@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+<title>3D</title>
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="stylesheet" href="style.css">
+<style>
+  .crumb{display:inline-block;color:var(--accent);font-size:16px;padding:6px 0;text-decoration:none}
+  .hero{display:flex;flex-direction:column;gap:12px;margin-top:6px}
+  .mode{position:relative;display:flex;align-items:center;gap:16px;padding:20px 18px;border-radius:22px;color:#fff;text-decoration:none;overflow:hidden;min-height:132px}
+  .mode.race{background:linear-gradient(135deg,#ff6a3d,#ff2d55)}
+  .mode.study{background:linear-gradient(135deg,#0a84ff,#5e5ce6)}
+  .mode i{font-style:normal;font-size:40px;flex:0 0 56px;text-align:center}
+  .mode b{display:block;font-size:24px;font-weight:700;letter-spacing:-.02em}
+  .mode small{display:block;font-size:14px;opacity:.9;margin-top:2px;line-height:1.45}
+  .mode .go{margin-left:auto;font-size:28px;font-weight:300;opacity:.9}
+  .mode:active{transform:scale(.985)}
+  .facts{margin-top:18px}
+  @media (min-width:720px){.hero{flex-direction:row}.mode{flex:1;min-height:200px}}
+</style>
+</head>
+<body>
+<main id="app">
+  <a class="crumb" href="index.html">‹ 30日</a>
+  <header class="top plain"><div class="ttl"><div class="day">3D</div><div class="sub" id="sub"></div></div></header>
+  <div class="hero">
+    <a class="mode race" href="3d/race.html" id="mRace"><i>🏁</i><span><b>レース</b><small>3コース・ライバル3台・ドリフトでダッシュ</small></span><span class="go">›</span></a>
+    <a class="mode study" href="3d/study.html" id="mStudy"><i>🧠</i><span><b>勉強レース</b><small>正しい答えの車線でゲートを通過。教材の ✕ から優先で出題</small></span><span class="go">›</span></a>
+  </div>
+  <h3 class="lh">記録</h3>
+  <ul class="list" id="rec"></ul>
+</main>
+<script src="haptic.js"></script>
+<script>
+  const fmt = t => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}.${String(Math.floor(t * 100) % 100).padStart(2, '0')}`;
+  let st = {}, S = {};
+  try { st = JSON.parse(localStorage.getItem('thirty.3d') || '{}'); } catch {}
+  try { S = JSON.parse(localStorage.getItem('thirty.v1') || '{}') || {}; } catch {}
+  const names = { park: 'グリーンパーク', city: 'ネオンシティ', coast: 'サンセット海岸' };
+  const rows = Object.entries(names).map(([k, n]) => `<li><div class="row"><span class="nm">${n}</span><span class="mt">${st.best && st.best[k] ? fmt(st.best[k]) : '—'}</span></div></li>`);
+  rows.push(`<li><div class="row"><span class="nm">✕ 復習待ち</span><span class="mt">${Object.keys(S.ng || {}).length}枚</span></div></li>`);
+  document.getElementById('rec').innerHTML = rows.join('');
+  document.getElementById('sub').textContent = 'タッチ操作・オフライン対応';
+  // 触覚：リンクは実タップでスイッチを鳴らしてから移動
+  for (const a of document.querySelectorAll('.mode, .crumb')) {
+    if (window.HapticUltra) HapticUltra.bind(a, { onTap: () => { location.href = a.getAttribute('href'); } });
+  }
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+</script>
+</body>
+</html>

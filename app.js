@@ -479,7 +479,8 @@ function renderLearn() {
       return `<button class="tile" data-d="${d.id}"><i>${ICON[d.id]}</i><b>${esc(d.name)}</b><small>${cs.length}枚 · ${Math.round(m / (cs.length || 1) * 100)}%</small><span class="bar"><em style="width:${m / (cs.length || 1) * 100}%"></em></span></button>`;
     }).join('') +
       `<button class="tile ext" data-x="book"><i>📕</i><b>化学問題集</b><small>理論・無機 / 教科書</small></button>` +
-      `<button class="tile ext" data-x="ng"><i>✕</i><b>✕ まとめて復習</b><small>${allNg}枚</small></button>`;
+      `<button class="tile ext" data-x="ng"><i>✕</i><b>✕ まとめて復習</b><small>${allNg}枚</small></button>` +
+      `<button class="tile ext d3" data-x="3d"><i>🏁</i><b>3D レース</b><small>レース / 勉強レース</small></button>`;
     return;
   }
   const D = DECK[LD], cards = D.units.flatMap(u => u.cards), m = mastered(cards), ng = ngOf(LD).length;
@@ -498,6 +499,7 @@ $('#lib').addEventListener('click', e => {
   const b = e.target.closest('.tile'); if (!b) return; buzz();
   if (b.dataset.d) { LD = b.dataset.d; renderLearn(); window.scrollTo(0, 0); }
   else if (b.dataset.x === 'book') openBook();
+  else if (b.dataset.x === '3d') location.href = '3d.html';
   else if (b.dataset.x === 'ng') { const ids = Object.keys(S.ng).filter(id => CARD[id]); ids.length ? startCards(ids, { title: '✕ まとめて復習' }) : toast('✕ はありません'); }
 });
 tap($('#back'), () => { LD = null; renderLearn(); window.scrollTo(0, 0); });
@@ -592,3 +594,4 @@ document.addEventListener('keydown', e => {
 
 renderTrends();
 show('today');
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
