@@ -94,6 +94,11 @@ function plan(d) {
     else if (d <= 23) { lap = '2周目'; const g = span(us, d - 16, 8); T.push({ k: 'out', t: 'アウトプット', s: names(g), act: { out: g.map(u => u.id) } }); }
     else if (d <= 27) { lap = '3周目'; const g = span(us, d - 24, 4); T.push({ k: 'out', t: 'アウトプット', s: names(g), act: { out: g.map(u => u.id) } }); }
     else { lap = '仕上げ'; T.push({ k: 'rnd', t: '全範囲ランダム', s: '40枚', act: { rnd: id, n: 40 } }); }
+    if (id === 'chem' && d <= 23) {
+      const g = d <= 15 ? [us[d - 1]] : span(us, d - 16, 8);
+      const pg = g.flatMap(u => (CHEM_PAGES[u.id] || []).map(([b, r]) => b + ' p.' + r));
+      if (pg.length) T.push({ k: 'book', t: '問題集', s: pg.join('・'), act: { link: CHEM_SITE } });
+    }
     T.push(ngTask(id));
     const past = id === 'math' ? { 21: ['数学ⅠA', 70], 24: ['数学ⅡBC', 70], 28: ['数学ⅠA', 70], 29: ['数学ⅡBC', 70] }[d] : { 22: ['化学', 60], 26: ['化学', 60], 30: ['化学', 60] }[d];
     if (past) T.push({ k: 'past', t: '過去問 ' + past[0], s: past[1] + '分', act: { timer: past[1], label: past[0] + ' 過去問' } });
@@ -182,6 +187,7 @@ function runTask(d, key, t) {
   else if (a.rnd) startCards(shuffle(DECK[a.rnd].units.flatMap(u => u.cards.map(c => c.id))).slice(0, a.n), meta);
   else if (a.timer) openTimer(a.timer, a.label, meta);
   else if (a.write) { openWrite(a.write, a.theme, meta); }
+  else if (a.link) { window.open(a.link, '_blank'); setDone(d, key); renderToday(); }
   else if (a.check) { setDone(d, key, !isDone(d, key)); buzz('ok'); renderToday(); }
 }
 
@@ -477,7 +483,7 @@ $('#units').addEventListener('click', e => {
 const TCAT = (() => {
   const base = { '共テ': [], '英検': [], 'IELTS・TEAP': [], '小論文': [] };
   for (const t of TRENDS) base[/英検/.test(t.t) ? '英検' : /IELTS/.test(t.t) ? 'IELTS・TEAP' : '共テ'].push(t);
-  const X = window.TRENDS_X || {};
+  const X = typeof TRENDS_X !== 'undefined' ? TRENDS_X : {};
   for (const k in base) base[k] = [...base[k], ...(X[k] || [])];
   return base;
 })();
