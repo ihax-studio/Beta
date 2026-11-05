@@ -110,9 +110,9 @@ function makeQuestions() {
     const ng = shuffle(all.filter(x => S.ng[x.c.id])), weak = shuffle(all.filter(x => !S.ng[x.c.id] && (S.lv[x.c.id] || 0) < 2)), rest = shuffle(all.filter(x => !S.ng[x.c.id] && (S.lv[x.c.id] || 0) >= 2));
     pick = [...ng, ...weak, ...rest].slice(0, NQ);
   }
-  while (pick.length < NQ && pick.length) pick.push(pick[pick.length % pick.length]);
+  { const n = pick.length; for (let i = 0; pick.length < NQ && n; i++) pick.push(pick[i % n]); }
   return pick.map(({ c, u }) => {
-    const pool = (u.cards.length >= 6 ? u.cards : D.units.flatMap(x => x.cards)).filter(x => x.a && x.a !== c.a);
+    const pool = (u.cards.length >= 6 ? u.cards : D.units.flatMap(x => x.cards)).filter(x => x.a && x.a !== c.a && x.q !== c.q);
     const wrong = [];
     for (let k = 0; k < 40 && wrong.length < 2; k++) { const w = pool[Math.random() * pool.length | 0]; if (w && !wrong.includes(w.a)) wrong.push(w.a); }
     while (wrong.length < 2) wrong.push('—');
@@ -165,8 +165,11 @@ function build(withGates) {
   race.loop(); window.__race = race;
 }
 function preview() { build(false); }
-function start(ngOnly) {
-  forced = ngOnly ? missed.map(c => c.id) : null;
+let lastNg = false, lastForced = null;
+function start(ngOnly, again) {
+  if (again) { ngOnly = lastNg; } lastNg = ngOnly;
+  forced = again ? lastForced : (ngOnly ? missed.map(c => c.id) : null); lastForced = forced;
+  if (0) forced = ngOnly ? missed.map(c => c.id) : null;
   Q = makeQuestions(); score = 0; missed = []; showing = -1;
   if (!Q.length) { msg('カードがありません', 'ng'); return; }
   ['#menuStart', '#menuEnd', '#menuPause'].forEach(s => $(s).hidden = true); $('#hud').hidden = false; $('#back').hidden = true;
@@ -184,15 +187,17 @@ function finish(me) {
 hap.bind($('#startBtn'), () => start(false), 'confirm');
 hap.bind($('#again'), () => start(false), 'confirm');
 hap.bind($('#retryNg'), () => start(true), 'confirm');
-hap.bind($('#pause'), () => { if (!race) return; race.paused = true; $('#menuPause').hidden = false; });
+$('#pause').addEventListener('pointerup', () => { if (!race || race.paused) return; race.paused = true; $('#menuPause').hidden = false; });
+hap.bind($('#pause'), () => { if (!race || race.paused) return; race.paused = true; $('#menuPause').hidden = false; });
 hap.bind($('#resume'), () => { race.paused = false; race._last = 0; $('#menuPause').hidden = true; });
-hap.bind($('#retry'), () => start(false));
+hap.bind($('#retry'), () => start(false, true));
 const toMenu = () => { ['#menuPause', '#menuEnd'].forEach(s => $(s).hidden = true); $('#hud').hidden = true; $('#back').hidden = false; $('#menuStart').hidden = false; tiles(); preview(); };
 hap.bind($('#toMenu'), toMenu); hap.bind($('#endMenu'), toMenu);
 document.addEventListener('visibilitychange', () => { if (document.hidden && race && race.state === 'run') { race.paused = true; $('#menuPause').hidden = false; } });
 addEventListener('keydown', e => { if ((e.code === 'Escape' || e.code === 'KeyP') && race && race.state === 'run') { race.paused = !race.paused; race._last = 0; $('#menuPause').hidden = !race.paused; } });
 bindControls(() => race, $('#pad'), $('#drift'), $('#knob'));
 tiles(); preview();
+addEventListener('pageshow', e => { if (e.persisted) location.reload(); });
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('../sw.js').catch(() => {});
 </script>
 </body>

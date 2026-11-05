@@ -106,7 +106,8 @@ function finish(me) {
 }
 hap.bind($('#startBtn'), start, 'confirm');
 hap.bind($('#again'), start, 'confirm');
-hap.bind($('#pause'), () => { if (!race) return; race.paused = true; $('#menuPause').hidden = false; });
+$('#pause').addEventListener('pointerup', () => { if (!race || race.paused) return; race.paused = true; $('#menuPause').hidden = false; });
+hap.bind($('#pause'), () => { if (!race || race.paused) return; race.paused = true; $('#menuPause').hidden = false; });
 hap.bind($('#resume'), () => { race.paused = false; race._last = 0; $('#menuPause').hidden = true; });
 hap.bind($('#retry'), start);
 const toCourse = () => { $('#menuPause').hidden = true; $('#menuEnd').hidden = true; $('#hud').hidden = true; $('#back').hidden = false; $('#menuStart').hidden = false; courseTiles(); preview(); };
@@ -115,6 +116,7 @@ document.addEventListener('visibilitychange', () => { if (document.hidden && rac
 addEventListener('keydown', e => { if ((e.code === 'Escape' || e.code === 'KeyP') && race && race.state === 'run') { race.paused = !race.paused; race._last = 0; $('#menuPause').hidden = !race.paused; } });
 bindControls(() => race, $('#pad'), $('#drift'), $('#knob'));
 courseTiles(); preview();
+addEventListener('pageshow', e => { if (e.persisted) location.reload(); });
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('../sw.js').catch(() => {});
 </script>
 </body>

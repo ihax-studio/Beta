@@ -314,7 +314,7 @@ export class Race {
     if (this.state === 'run' || this.state === 'done') this.t += dt;
     const tr = this.track, L = tr.L;
     for (const k of this.karts) {
-      if (k.done && !k.player) { k.v *= .99; }
+      if (k.done) { k.v *= .97; if (k.player) { k.s += k.v * dt; k.prog = k.lap * L + k.s; continue; } }
       let steer, drift;
       if (k.player && !k.done) { steer = this.input.steer; drift = this.input.drift; }
       else {
@@ -382,7 +382,8 @@ export class Race {
     // ゲート（勉強）
     for (const g of this.gates) {
       const ahead = g.s - me.prog;
-      if (!g.asked && ahead < 260 && ahead > 0) { g.asked = true; o.onGateNear && o.onGateNear(this.gates.indexOf(g)); }
+      const gi = this.gates.indexOf(g);
+      if (!g.asked && ahead < 260 && ahead > 0 && (gi === 0 || this.gates[gi - 1].passed)) { g.asked = true; o.onGateNear && o.onGateNear(this.gates.indexOf(g)); }
       if (!g.passed && ahead <= 0) {
         g.passed = true; g.g.visible = false;
         const lane = me.x < -W / 6 ? 0 : me.x > W / 6 ? 2 : 1;
@@ -402,6 +403,7 @@ export class Race {
   }
   onLap() {
     const me = this.me, o = this.opts;
+    if (me.done) return;
     if (me.lap >= this.laps) { me.done = true; me.time = this.t; this.state = 'done'; hap.end(); o.onFinish && o.onFinish(me); }
     else { hap.ok(); o.onLap && o.onLap(me.lap + 1); }
   }
@@ -432,7 +434,7 @@ export function bindControls(getRace, pad, driftBtn, knob) {
   const up = e => { if (e.pointerId === id) { id = null; set(0); pad.classList.remove('on'); } };
   pad.addEventListener('pointerup', up); pad.addEventListener('pointercancel', up);
   const dOn = () => { R().input.drift = true; driftBtn.classList.add('on'); };
-  const dOff = () => { R().input.drift = false; driftBtn.classList.remove('on'); };
+  const dOff = () => { if (R().input.drift) hap.tap(); R().input.drift = false; driftBtn.classList.remove('on'); };
   driftBtn.addEventListener('pointerdown', dOn); driftBtn.addEventListener('pointerup', dOff); driftBtn.addEventListener('pointercancel', dOff); driftBtn.addEventListener('pointerleave', dOff);
   hap.bind(driftBtn, () => {});        // 指を離した瞬間に触覚（iOS 26.5+ でも確実）
   const keys = new Set();

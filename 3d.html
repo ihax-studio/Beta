@@ -54,6 +54,7 @@
   for (const a of document.querySelectorAll('.mode, .crumb')) {
     if (window.HapticUltra) HapticUltra.bind(a, { onTap: () => { location.href = a.getAttribute('href'); } });
   }
+  addEventListener('pageshow', e => { if (e.persisted) location.reload(); });
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 </script>
 </body>

@@ -595,3 +595,4 @@ document.addEventListener('keydown', e => {
 renderTrends();
 show('today');
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+addEventListener('pageshow', e => { if (e.persisted) location.reload(); });
