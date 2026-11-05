@@ -27,15 +27,21 @@
       <button class="nav-btn" id="dNext" aria-label="次の日">›</button>
     </header>
     <div class="meter"><i id="dBar"></i></div>
+    <button class="next" id="next"><span class="nx" id="nextIn"></span></button>
     <div id="plan"></div>
-    <button class="link" id="openSet">設定</button>
   </section>
 
   <section class="view" id="v-learn">
-    <header class="top plain"><div class="ttl"><div class="day">学習</div></div></header>
-    <div class="seg" id="seg"></div>
-    <div id="deckHead"></div>
-    <ul class="list" id="units"></ul>
+    <header class="top plain"><div class="ttl"><div class="day">教材</div></div></header>
+    <div class="search"><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M20 20l-4.6-4.6"/></svg><input id="q" type="search" placeholder="単語・公式・用語をさがす" autocomplete="off" enterkeyhint="search"></div>
+    <ul class="list hits" id="hits"></ul>
+    <div class="tiles" id="lib"></div>
+    <div id="deckView">
+      <button class="back" id="back">‹ 教材</button>
+      <h2 class="dname" id="deckName"></h2>
+      <div id="deckHead"></div>
+      <ul class="list" id="units"></ul>
+    </div>
   </section>
 
   <section class="view" id="v-write">
@@ -75,7 +81,7 @@
 
 <nav class="tabs" id="tabs">
   <button class="on" data-v="today"><svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg><span>今日</span></button>
-  <button data-v="learn"><svg viewBox="0 0 24 24"><rect x="4" y="6" width="13" height="15" rx="2.5"/><path d="M8 3h9.5A2.5 2.5 0 0 1 20 5.5V17"/></svg><span>学習</span></button>
+  <button data-v="learn"><svg viewBox="0 0 24 24"><rect x="4" y="6" width="13" height="15" rx="2.5"/><path d="M8 3h9.5A2.5 2.5 0 0 1 20 5.5V17"/></svg><span>教材</span></button>
   <button data-v="write"><svg viewBox="0 0 24 24"><path d="M4 20h4L19.5 8.5a2.1 2.1 0 0 0-3-3L5 17v3zM14.5 7.5l2 2"/></svg><span>書く</span></button>
   <button data-v="past"><svg viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 13l2 2 4-4"/></svg><span>過去問</span></button>
   <button data-v="trend"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span>傾向</span></button>
@@ -134,7 +140,7 @@
   </div>
   <div class="tm-btns">
     <button class="btn" id="tReset">リセット</button>
-    <button class="btn pri" id="tGo">開始</button>
+    <button class="btn pri" id="tGo"><span id="tGoTx">開始</span></button>
   </div>
   <div class="ov-foot"><button class="btn" id="tDone">完了にする</button></div>
 </div>
@@ -151,7 +157,7 @@
   <div class="ov-foot two"><button class="btn" id="mClear">クリア</button><button class="btn pri" id="mGrade">採点</button></div>
 </div>
 
-<button class="pill" id="pill"></button>
+<button class="pill" id="pill"><span id="pillTx"></span></button>
 <div id="toast"></div>
 
 <!-- シート -->
