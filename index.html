@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+<title>30日</title>
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<main id="app">
+  <section class="view on" id="v-today">
+    <header class="top">
+      <button class="nav-btn" id="dPrev" aria-label="前の日">‹</button>
+      <div class="ttl">
+        <div class="day" id="dTitle">Day 1</div>
+        <div class="sub" id="dSub"></div>
+      </div>
+      <button class="nav-btn" id="dNext" aria-label="次の日">›</button>
+    </header>
+    <div class="meter"><i id="dBar"></i></div>
+    <div id="plan"></div>
+    <button class="link" id="openSet">設定</button>
+  </section>
+
+  <section class="view" id="v-learn">
+    <header class="top plain"><div class="ttl"><div class="day">学習</div></div></header>
+    <div class="seg" id="seg"></div>
+    <div id="deckHead"></div>
+    <ul class="list" id="units"></ul>
+  </section>
+
+  <section class="view" id="v-write">
+    <header class="top plain"><div class="ttl"><div class="day">書く</div></div><div class="wtime" id="wTime"></div></header>
+    <div class="seg" id="wChips"></div>
+    <div class="wbox">
+      <div class="wtheme"><textarea id="wTheme" rows="2" placeholder="テーマ・設問"></textarea><button class="chip" id="wRand">ランダム</button></div>
+      <textarea id="wText" placeholder="本文"></textarea>
+      <div class="wbar"><div class="wc" id="wCount"></div><button class="chip" id="wGuide">型</button><button class="chip" id="wTimer">タイマー</button></div>
+      <div class="wtpl" id="wTpl">
+        <div><b>小論文</b>①主張（設問の言い換え＋立場）→ ②理由 → ③具体例・根拠 → ④反論への配慮 → ⑤結論（再提示＋展望）</div>
+        <div><b>要約</b>主張 → 根拠 → 結論を本文の順に、具体例は削る、言い換える</div>
+        <div><b>意見論述</b>立場 → 理由1＋例 → 理由2＋例 → 結論</div>
+        <div><b>IELTS T1</b>導入（言い換え）→ Overview → 詳細2段落</div>
+        <div><b>IELTS T2</b>序論（言い換え＋立場）→ 本論2段落 → 結論</div>
+      </div>
+    </div>
+    <div class="wact"><button class="btn" id="wNew">新規</button><button class="btn pri" id="wSave">保存</button></div>
+    <h3 class="lh" id="wDraftsH">下書き</h3>
+    <ul class="list" id="wDrafts"></ul>
+  </section>
+
+  <section class="view" id="v-past">
+    <header class="top plain"><div class="ttl"><div class="day">過去問</div></div></header>
+    <h3 class="lh">答え合わせ</h3>
+    <ul class="list" id="keys"></ul>
+    <h3 class="lh">手元の過去問・資料<label class="chip add">追加<input type="file" id="fAdd" accept="application/pdf,image/*" multiple hidden></label></h3>
+    <ul class="list" id="files"></ul>
+  </section>
+
+  <section class="view" id="v-trend">
+    <header class="top plain"><div class="ttl"><div class="day">傾向</div></div></header>
+    <div class="seg" id="tseg"></div>
+    <div id="trends"></div>
+  </section>
+</main>
+
+<nav class="tabs" id="tabs">
+  <button class="on" data-v="today"><svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg><span>今日</span></button>
+  <button data-v="learn"><svg viewBox="0 0 24 24"><rect x="4" y="6" width="13" height="15" rx="2.5"/><path d="M8 3h9.5A2.5 2.5 0 0 1 20 5.5V17"/></svg><span>学習</span></button>
+  <button data-v="write"><svg viewBox="0 0 24 24"><path d="M4 20h4L19.5 8.5a2.1 2.1 0 0 0-3-3L5 17v3zM14.5 7.5l2 2"/></svg><span>書く</span></button>
+  <button data-v="past"><svg viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 13l2 2 4-4"/></svg><span>過去問</span></button>
+  <button data-v="trend"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span>傾向</span></button>
+</nav>
+
+<!-- カード（アウトプット） -->
+<div class="ov" id="ses">
+  <div class="ov-top">
+    <button class="x" data-close aria-label="閉じる">✕</button>
+    <div class="ov-ttl" id="sTitle"></div>
+    <div class="cnt" id="sCnt"></div>
+  </div>
+  <div class="meter thin"><i id="sBar"></i></div>
+  <div class="stage">
+    <div class="fc" id="fc" role="button" tabindex="0" aria-label="答えを表示">
+      <div class="q" id="fq"></div>
+      <div class="qx" id="fqx"></div>
+      <div class="a" id="fa"></div>
+      <div class="ax" id="fax"></div>
+      <div class="hint" id="fhint">タップで答え</div>
+    </div>
+  </div>
+  <div class="judge" id="judge">
+    <button class="ng" id="bNg" aria-label="まだ">✕</button>
+    <button class="ok" id="bOk" aria-label="できた">○</button>
+  </div>
+  <div class="result" id="result">
+    <div class="res-num"><span class="o" id="rOk">0</span><span class="sl">/</span><span id="rAll">0</span></div>
+    <div class="res-sub" id="rSub"></div>
+    <button class="btn pri" id="rRetry">✕ だけもう一周</button>
+    <button class="btn" data-close>閉じる</button>
+  </div>
+</div>
+
+<!-- インプット（一覧） -->
+<div class="ov" id="inp">
+  <div class="ov-top">
+    <button class="x" data-close aria-label="閉じる">✕</button>
+    <div class="ov-ttl" id="iTitle"></div>
+    <button class="chip" id="iHide">隠す</button>
+  </div>
+  <ol class="ilist" id="iList"></ol>
+  <div class="ov-foot"><button class="btn pri" id="iDone">インプット完了</button></div>
+</div>
+
+<!-- タイマー -->
+<div class="ov" id="tmr">
+  <div class="ov-top">
+    <button class="x" data-close aria-label="閉じる">✕</button>
+    <div class="ov-ttl" id="tTitle"></div>
+    <div class="cnt"></div>
+  </div>
+  <div class="tm-wrap">
+    <svg class="tm-ring" viewBox="0 0 120 120"><circle cx="60" cy="60" r="54" class="bg"/><circle cx="60" cy="60" r="54" class="fg" id="tRing"/></svg>
+    <div class="tm-num" id="tNum">00:00</div>
+  </div>
+  <div class="tm-btns">
+    <button class="btn" id="tReset">リセット</button>
+    <button class="btn pri" id="tGo">開始</button>
+  </div>
+  <div class="ov-foot"><button class="btn" id="tDone">完了にする</button></div>
+</div>
+
+<!-- マークシート -->
+<div class="ov" id="mark">
+  <div class="ov-top">
+    <button class="x" data-close aria-label="閉じる">✕</button>
+    <div class="ov-ttl" id="mTitle"></div>
+    <button class="chip" id="mTimer">タイマー</button>
+  </div>
+  <div class="mscore" id="mScore"></div>
+  <ol class="mlist" id="mList"></ol>
+  <div class="ov-foot two"><button class="btn" id="mClear">クリア</button><button class="btn pri" id="mGrade">採点</button></div>
+</div>
+
+<button class="pill" id="pill"></button>
+<div id="toast"></div>
+
+<!-- シート -->
+<div class="sheet-bg" id="sheetBg"></div>
+<div class="sheet" id="sheet"></div>
+
+
+<script src="haptic.js"></script>
+<script src="data.js"></script>
+<script src="en-data.js"></script>
+<script src="trends.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
